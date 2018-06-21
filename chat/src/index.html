@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <title>
-        <?!= data.title?>
+        <?= data.title ?>
     </title>
 
     <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon">
@@ -19,36 +19,46 @@
 </head>
 
 <body class="claro">
-    <div class="row service-container">
-        <div class="col-lg-12 service-header">
-        </div>
-        <div class="row conversation-div">
-            <div class="container">
-                <div class="col-lg-6 col-md-6 col-xs-6 no-padding-right">
-                    <h4 class="green-title"><?!= data.bot_name ?></h4>
+    <div class="container">
+        <div class="col-xs-12">
+            <div class="row service-container">
+                <div class="service-header">
                 </div>
-                <div class="col-lg-6 col-md-6 col-xs-6 text-right no-padding-left">
-                    <h4 class="blue-title"><?!= data.user_name?></h4>
-                </div>
-            </div>
-            <div class="container">
-                <div class="conversation-flow-container clearfix">
-                    <div class="col-lg-12 col-md-12 col-xs-12">
-                        <div class="conversation-well conversation-container clearfix">
-                            <div class="row">
-                                <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
-                                    <div class="bs-component">
-                                        <div id="conversation_field"></div>
+                <div class="row conversation-div">
+                    <div class="container">
+                        <div class="col-xs-6 no-padding-right">
+                            <h4 class="green-title"><?= data.bot_name ?></h4>
+                        </div>
+                        <div class="col-xs-6 text-right no-padding-left">
+                            <h4 class="blue-title"><?= data.user_name ?></h4>
+                        </div>
+                    </div>
+
+                    <div class="container">
+
+                        <div class="conversation-flow-container clearfix">
+                            <div class="col">
+                                <div class="conversation-well conversation-container clearfix">
+                                    <div class="row">
+                                        <div class="col">
+                                            <div class="bs-component">
+                                                <div id="conversation_field"></div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="col-lg-9 col-md-9 col-xs-9 no-padding-right">
-                        <input id="QuestionText" type="text" onkeydown="go()" placeholder="質問を入力してください" class="form-control">
-                    </div>
-                    <div class="col-lg-3 col-md-3 col-xs-3 no-padding">
-                        <button type="submit" id="send-btn" class="input-btn btn btn-block" onclick="askwatson($('#QuestionText').val());">送信</button>
+
+                        <div class="row">
+                            <div class="col-xs-9" style="float: left; padding-right: 0px;">
+                                <input style="width:100%;" id="QuestionText" type="text" onkeydown="go()" placeholder="質問を入力してください" class="form-control">
+                            </div>
+                            <div class="col-xs-3" style="padding-left: 1%;">
+                                <button style="width:99%;" type="submit" id="send-btn" class="input-btn btn btn-block" onclick="askwatson($('#QuestionText').val());">送信</button>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -65,4 +75,5 @@
 
 </body>
 
+<!-- 8ad2171 - スマホ最適化対応 -->
 </html>

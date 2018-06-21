@@ -165,8 +165,11 @@ function doGet() { // eslint-disable-line no-unused-vars
         avatar_url: conf.sheet_conf.avatar_url,
     };
 
-    return web.evaluate()
-        .setSandboxMode(HtmlService.SandboxMode.IFRAME);
+    var output = web.evaluate();
+    output.addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui');
+    output.addMetaTag("apple-mobile-web-app-capable", 'yes')
+    output.addMetaTag("mobile-web-app-capable", 'yes')
+    return output;
 }
 // ----------------------------------------------------
 
@@ -262,3 +265,5 @@ function onOpen() { // eslint-disable-line no-unused-vars
 function test_send() { // eslint-disable-line no-unused-vars
     CHATUTIL_send_message("電話番号を教えて");
 }
+
+// 8c591a6 - メタデータの追加

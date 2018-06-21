@@ -37,7 +37,7 @@
  * @property {String} TRAINING トレーニング中
  * @property {String} NOTHING  利用不可
  */
-var NLCAPI_CLF_STATUS = {   // eslint-disable-line no-unused-vars
+var NLCAPI_CLF_STATUS = { // eslint-disable-line no-unused-vars
     AVAILABLE: 'Available',
     TRAINING: 'Training',
     NOTHING: 'Nothing',
@@ -320,6 +320,7 @@ function NLCUTIL_load_notif_rules(config_set) {
     }
 
     var records = sheet.getRange(config_set.start_row, config_set.start_col, (lastRow - config_set.start_row) + 1, nb_conf)
+        .setNumberFormat('@')
         .getValues();
 
     var rules = [];
@@ -478,7 +479,9 @@ function NLCUTIL_select_clf(clf_name, creds_username, creds_password) {
     if (clfs.status !== 200) {
         return {
             clf_id: '',
-            status: clfs.status,
+            status: "Error",
+            description: clfs.body.error,
+            code: clfs.body.code,
         };
     }
 
@@ -569,7 +572,7 @@ function NLCUTIL_check_notify(notif_set, record, upd_flg) {
                 if (upd_flg[j] === 1) {
                     upd_chk = 1;
                 }
-                if (record[notif_set.result_cols[j] - 1] === notif_set.rules[i].res_int[j]) {
+                if (String(record[notif_set.result_cols[j] - 1]) === notif_set.rules[i].res_int[j]) {
                     chk_cnt += 1;
                 }
             }
@@ -651,6 +654,20 @@ function NLCUTIL_log_classify(log_set, test_set, test_result) {
         ];
         sheet.getRange(lastRow, log_set.start_col, 1, record.length)
             .setValues([record]);
+    } else if (test_result.status === 800) {
+        record = [
+            '分類',
+            Utilities.formatDate(new Date(), 'JST', 'yyyy/MM/dd HH:mm:ss'),
+            test_result.description,
+            test_set.clf_no,
+            test_set.ws_name,
+            'N/A',
+            test_set.text_col,
+            test_set.result_col,
+            test_result.clf_id,
+        ];
+        sheet.getRange(lastRow, log_set.start_col, 1, record.length)
+            .setValues([record]);
     } else if (test_result.status === 900) {
         record = [
             '分類',
@@ -687,11 +704,19 @@ function NLCUTIL_log_classify(log_set, test_set, test_result) {
                 'N/A',
                 test_set.text_col,
                 test_set.result_col,
+                test_result.clf_id,
+                test_result.status,
+
             ];
         }
         sheet.getRange(lastRow, log_set.start_col, 1, record.length)
             .setValues([record])
             .setFontColor('red');
+
+        if (typeof test_result.throw_exception !== 'undefined' && test_result.throw_exception === false) {
+            return
+        }
+        throw new Error("分類器のエラーです。ログを確認してください。")
     }
 }
 // ----------------------------------------------------------------------------
@@ -735,18 +760,32 @@ function NLCUTIL_log_delete(log_set, del_set, del_result) {
         sheet.getRange(lastRow, log_set.start_col, 1, record.length)
             .setValues([record]);
     } else {
-        record = ['削除',
-            Utilities.formatDate(new Date(), 'JST', 'yyyy/MM/dd HH:mm:ss'),
-            '失敗',
-            del_set.clf_no,
-            '',
-            '',
-            '',
-            '',
-            del_set.clf_id,
-            del_result.status,
-            del_result.nlc.body.status_description,
-        ];
+        if (del_result['nlc']) {
+            record = ['削除',
+                Utilities.formatDate(new Date(), 'JST', 'yyyy/MM/dd HH:mm:ss'),
+                '失敗',
+                del_set.clf_no,
+                '',
+                '',
+                '',
+                '',
+                del_set.clf_id,
+                del_result.status,
+                del_result.nlc.body.status_description,
+            ];
+        } else {
+            record = ['削除',
+                Utilities.formatDate(new Date(), 'JST', 'yyyy/MM/dd HH:mm:ss'),
+                del_result.status,
+                del_set.clf_no,
+                '',
+                '',
+                '',
+                '',
+                del_set.clf_id,
+                del_result.code,
+            ];
+        }
         sheet.getRange(lastRow, log_set.start_col, 1, record.length)
             .setValues([record])
             .setFontColor('red');
@@ -863,6 +902,12 @@ function NLCUTIL_classify_all() { // eslint-disable-line no-unused-vars
                 description: "分類器なし",
                 clf_id: "",
             });
+        } else if (clf.status === "Error") {
+            NLCUTIL_log_classify(log_set, test_set, {
+                status: clf.code,
+                description: clf.description,
+                clf_id: clf.clf_id,
+            });
         } else if (clf.status !== "Available") {
             NLCUTIL_log_classify(log_set, test_set, {
                 status: 800,
@@ -934,6 +979,7 @@ function NLCUTIL_classify_all() { // eslint-disable-line no-unused-vars
             } else {
                 var r = nlc_res.body.top_class;
                 sheet.getRange(conf.sheet_conf.start_row + cnt, conf.sheet_conf.result_col[j], 1, 1)
+                    .setNumberFormat('@')
                     .setValue(r);
                 var t = Utilities.formatDate(new Date(), "JST", "yyyy/MM/dd HH:mm:ss");
                 sheet.getRange(conf.sheet_conf.start_row + cnt, conf.sheet_conf.restime_col[j], 1, 1)
@@ -1082,7 +1128,7 @@ function NLCUTIL_train(train_set, creds_username, creds_password) {
     if (clfs.status !== 200) {
         return {
             status: clfs.status,
-            description: clfs.error,
+            description: clfs.body.error,
         };
     }
 
@@ -1099,9 +1145,11 @@ function NLCUTIL_train(train_set, creds_username, creds_password) {
         entries = [];
     } else {
         entries = sheet.getRange(train_set.start_row, 1, (lastRow - train_set.start_row) + 1, lastCol)
+            .setNumberFormat('@')
             .getValues();
     }
 
+    var train_buf = [];
     var row_cnt = 0;
     var csvString = '';
     for (var i = 0; i < entries.length; i += 1) {
@@ -1117,8 +1165,11 @@ function NLCUTIL_train(train_set, creds_username, creds_password) {
             train_text = train_text.substring(0, 1024);
         }
 
-        csvString = csvString + '"' + train_text + '","' + class_name + '"' +
-            "\r\n";
+        train_buf.push({
+            text: train_text,
+            class: class_name
+        });
+
         row_cnt += 1;
     }
 
@@ -1127,6 +1178,18 @@ function NLCUTIL_train(train_set, creds_username, creds_password) {
             status: 0,
             description: "学習データなし",
         };
+    }
+
+    var LIMIT = 15000;
+    var train_data = [];
+    if (row_cnt > LIMIT) {
+        train_data = train_buf.splice(row_cnt - LIMIT, row_cnt - 1)
+    } else {
+        train_data = train_buf;
+    }
+    for (var tcnt = 0; tcnt < train_data.length; tcnt += 1) {
+        csvString = csvString + '"' + train_data[tcnt].text + '","' + train_data[tcnt].class + '"' +
+            "\r\n";
     }
 
     var clf_info = NLCUTIL_clf_vers(clfs.body.classifiers, train_set.clf_name);
@@ -1190,6 +1253,7 @@ function NLCUTIL_train_set(clf_no) {
     };
 
     NLCUTIL_log_train(log_set, train_set, train_result);
+
 }
 // ----------------------------------------------------------------------------
 
@@ -1250,9 +1314,23 @@ function NLCUTIL_delete_classifier(clf_no) {
         SS_UI = null;
     }
 
+    var log_set = {
+        ss_id: SS_ID,
+        ws_name: conf.sheet_conf.log_ws,
+        start_col: CONFIG_SET.log_start_col,
+        start_row: CONFIG_SET.log_start_row,
+    };
+
     var clfs = NLCAPI_get_classifiers(CREDS.username, CREDS.password);
     if (clfs.status !== 200) {
-        throw new Error("サーバーエラーが発生しました");
+        NLCUTIL_log_delete(log_set, {
+            clf_no: clf_no,
+            clf_id: "N/A"
+        }, {
+            status: clfs.body.error,
+            code: clfs.body.code,
+        });
+        throw new Error("分類器のエラーです。ログを確認してください。");
     }
 
     var msg;
@@ -1275,12 +1353,6 @@ function NLCUTIL_delete_classifier(clf_no) {
         }
     }
 
-    var log_set = {
-        ss_id: SS_ID,
-        ws_name: conf.sheet_conf.log_ws,
-        start_col: CONFIG_SET.log_start_col,
-        start_row: CONFIG_SET.log_start_row,
-    };
 
     for (var i = clf_info.min_ver; i <= clf_info.max_ver; i += 1) {
         var nlc_res = NLCAPI_delete_classifier(CREDS.username, CREDS.password, clf_info.clfs[i].classifier_id);
@@ -1347,6 +1419,7 @@ function NLCUTIL_log_train(log_set, train_set, res) {
 
     var record = [];
     if (res.status === 200) {
+
         record = ['学習',
             Utilities.formatDate(new Date(res.nlc.from), 'JST', 'yyyy/MM/dd HH:mm:ss'),
             res.nlc.body.status,
@@ -1363,6 +1436,12 @@ function NLCUTIL_log_train(log_set, train_set, res) {
         ];
         sheet.getRange(lastRow, log_set.start_col, 1, record.length)
             .setValues([record]);
+
+        if (res.rows > 15000) {
+            sheet.getRange(lastRow, (log_set.start_col + 6) - 1, 1, 1)
+                .setValue("15000(初めの" + (res.rows - 15000) + "件は除外)")
+                .setFontColor('red');
+        }
     } else if (res.status === 2000) {
         record = ['学習',
             Utilities.formatDate(new Date(res.nlc.from), 'JST', 'yyyy/MM/dd HH:mm:ss'),
@@ -1392,6 +1471,22 @@ function NLCUTIL_log_train(log_set, train_set, res) {
         ];
         sheet.getRange(lastRow, log_set.start_col, 1, record.length)
             .setValues([record]);
+    } else if (res.status === 999) {
+            record = ['学習',
+                Utilities.formatDate(new Date(), 'JST', 'yyyy/MM/dd HH:mm:ss'),
+                res.description,
+                train_set.clf_no,
+                train_set.ws_name,
+                'N/A',
+                train_set.text_col,
+                train_set.class_col,
+                '',
+                res.status,
+                res.error_desc ? res.error_desc : ""
+            ];
+        sheet.getRange(lastRow, log_set.start_col, 1, record.length)
+            .setValues([record])
+            .setFontColor('red');
     } else {
         // エラー
         if (res['nlc']) {
@@ -1419,11 +1514,13 @@ function NLCUTIL_log_train(log_set, train_set, res) {
                 train_set.class_col,
                 '',
                 res.status,
+                res.error_desc ? res.error_desc : ""
             ];
         }
         sheet.getRange(lastRow, log_set.start_col, 1, record.length)
             .setValues([record])
             .setFontColor('red');
+        throw new Error("分類器のエラーです。ログを確認してください。")
     }
 
 }
@@ -1472,7 +1569,7 @@ function NLCUTIL_check_classifiers(clf_set, creds) {
         if (clfs.status !== 200) {
             sheet.getRange(clf_set.start_row + (cnt - 1), clf_set.start_col, 1, 2)
                 .setValues([
-                    ['ERROR', clfs.error],
+                    ['ERROR', clfs.body.error],
                 ]);
         } else {
 
@@ -1490,7 +1587,22 @@ function NLCUTIL_check_classifiers(clf_set, creds) {
                 var clf = clf_info.clfs[clf_info.max_ver];
 
                 var res = NLCAPI_get_classifier(creds.username, creds.password, clf.classifier_id);
-                if (res.body.status === 'Available') {
+                if (res.body.status === 'Failed') {
+                    all_status += 1;
+                    var train_set2 = {
+                        clf_no: cnt,
+                        ws_name: "",
+                        text_col: "",
+                        class_col: ""
+                    };
+                    var train_result2 = {
+                        status: 999,
+                        description: "Failed",
+                        version: clf_info.max_ver,
+                        error_desc: res.body.status_description,
+                    };
+                    NLCUTIL_log_train(log_set, train_set2, train_result2);
+                } else if (res.body.status === 'Available') {
                     all_status += 1;
                     if (curr_stats[cnt - 1][0] === clf.classifier_id &&
                         curr_stats[cnt - 1][1] === 'Training') {
@@ -1904,3 +2016,4 @@ function NLCAPI_createBoundary() {
     return boundary;
 }
 // ----------------------------------------------------
+// c5b0c95 - Failedの対応

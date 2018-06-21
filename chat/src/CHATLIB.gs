@@ -206,6 +206,7 @@ function CHATUTIL_load_conv_rules(config_set) {
     }
 
     var records = sheet.getRange(config_set.start_row, config_set.start_col, (lastRow - config_set.start_row) + 1, nb_conf)
+        .setNumberFormat('@')
         .getValues();
 
     var rules = [];
@@ -345,17 +346,31 @@ function CHATUTIL_store_dialog(conv_set, res_classes) {
     if (lastRow < conv_set.start_row) {
         lastRow = conv_set.start_row;
     }
+    sheet.appendRow([conv_set.timestamp, conv_set.input_text, conv_set.messages]);
 
-    var record = [
-        conv_set.timestamp,
-        conv_set.input_text,
-        conv_set.messages,
-        "", res_classes[0].class_name, res_classes[0].confidence, res_classes[0].timestamp,
-        "", res_classes[1].class_name, res_classes[1].confidence, res_classes[1].timestamp,
-        "", res_classes[2].class_name, res_classes[2].confidence, res_classes[2].timestamp,
-    ];
-    sheet.appendRow(record);
+    sheet.getRange(lastRow, 5, 1, 1)
+        .setNumberFormat('@')
+        .setValue(res_classes[0].class_name);
+    sheet.getRange(lastRow, 6, 1, 1)
+        .setValue(res_classes[0].confidence);
+    sheet.getRange(lastRow, 7, 1, 1)
+        .setValue(res_classes[0].timestamp);
 
+    sheet.getRange(lastRow, 9, 1, 1)
+        .setNumberFormat('@')
+        .setValue(res_classes[1].class_name);
+    sheet.getRange(lastRow, 10, 1, 1)
+        .setValue(res_classes[1].confidence);
+    sheet.getRange(lastRow, 11, 1, 1)
+        .setValue(res_classes[1].timestamp);
+
+    sheet.getRange(lastRow, 13, 1, 1)
+        .setNumberFormat('@')
+        .setValue(res_classes[2].class_name);
+    sheet.getRange(lastRow, 14, 1, 1)
+        .setValue(res_classes[2].confidence);
+    sheet.getRange(lastRow, 15, 1, 1)
+        .setValue(res_classes[2].timestamp);
 }
 // ----------------------------------------------------------------------------
 
@@ -442,8 +457,7 @@ function CHATUTIL_send_message(input_text) { // eslint-disable-line no-unused-va
         conv_set.messages = msgs.join('\n');
         conv_set.timestamp = timestamp;
 
-        res_classes = [
-            {
+        res_classes = [{
                 class_name: 'N/A',
                 confidence: 0,
                 timestamp: timestamp
@@ -497,6 +511,47 @@ function CHATUTIL_send_message(input_text) { // eslint-disable-line no-unused-va
                 description: "トレーニング中",
                 clf_id: clf.clf_id,
             });
+        } else if (clf.status === "Nothing") {
+            NLCUTIL_log_classify(log_set, test_set, {
+                status: 900,
+                description: "分類器なし",
+                clf_id: "",
+            });
+        } else if (clf.status === "Error") {
+            msgs = [];
+            msgs.push(conf.sheet_conf.error_msg);
+            conv_set.input_text = input_text;
+            conv_set.messages = msgs.join('\n');
+            conv_set.timestamp = timestamp;
+
+            res_classes = [{
+                    class_name: 'N/A',
+                    confidence: 0,
+                    timestamp: timestamp
+                },
+                {
+                    class_name: 'N/A',
+                    confidence: 0,
+                    timestamp: timestamp
+                },
+                {
+                    class_name: 'N/A',
+                    confidence: 0,
+                    timestamp: timestamp
+                },
+            ];
+            CHATUTIL_store_dialog(conv_set, res_classes);
+
+            NLCUTIL_log_classify(log_set, test_set, {
+                status: clf.code,
+                description: clf.description,
+                clf_id: clf.clf_id,
+                throw_exception: false,
+            });
+
+            return {
+                response: msgs,
+            };
         } else if (clf.status !== "Available") {
             NLCUTIL_log_classify(log_set, test_set, {
                 status: 800,
@@ -582,10 +637,9 @@ function CHATUTIL_train(train_set, log_set) {
     if (clfs.status !== 200) {
         train_result = {
             status: clfs.status,
-            description: clfs.error,
+            description: clfs.body.error,
         };
-        NLCUTIL_log_train();
-        return;
+        NLCUTIL_log_train(log_set, train_set, train_result);
     }
 
     var sheet = SELF_SS.getSheetByName(train_set.ws_name);
@@ -601,9 +655,11 @@ function CHATUTIL_train(train_set, log_set) {
         entries = [];
     } else {
         entries = sheet.getRange(train_set.start_row, 1, (lastRow - train_set.start_row) + 1, lastCol)
+            .setNumberFormat('@')
             .getValues();
     }
 
+    var train_buf = [];
     var row_cnt = 0;
     var csvString = '';
     for (var i = 0; i < entries.length; i += 1) {
@@ -620,8 +676,11 @@ function CHATUTIL_train(train_set, log_set) {
             train_text = train_text.substring(0, 1024);
         }
 
-        csvString = csvString + '"' + train_text + '","' + class_name + '"' +
-            "\r\n";
+        train_buf.push({
+            text: train_text,
+            class: class_name
+        });
+
         row_cnt += 1;
     }
 
@@ -632,6 +691,18 @@ function CHATUTIL_train(train_set, log_set) {
         };
         NLCUTIL_log_train(log_set, train_set, train_result);
         return;
+    }
+
+    var LIMIT = 15000;
+    var train_data = [];
+    if (row_cnt > LIMIT) {
+        train_data = train_buf.splice(row_cnt - LIMIT, row_cnt - 1)
+    } else {
+        train_data = train_buf;
+    }
+    for (var tcnt = 0; tcnt < train_data.length; tcnt += 1) {
+        csvString = csvString + '"' + train_data[tcnt].text + '","' + train_data[tcnt].class + '"' +
+            "\r\n";
     }
 
     var clf_info = NLCUTIL_clf_vers(clfs.body.classifiers, train_set.clf_name);
@@ -706,7 +777,7 @@ function CHATUTIL_train_all() { // eslint-disable-line no-unused-vars
         SS_UI = null;
     }
 
-    var CREDS = NLCUTIL_load_creds()
+    NLCUTIL_load_creds()
 
     var conf = CHATUTIL_load_config(CONFIG_SET);
 
@@ -728,3 +799,4 @@ function CHATUTIL_train_all() { // eslint-disable-line no-unused-vars
     }
 }
 // ----------------------------------------------------------------------------
+// 9faab82 - 学習データ15000件超過対応
