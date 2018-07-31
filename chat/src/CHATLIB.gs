@@ -43,6 +43,11 @@
 /* globals NLCAPI_delete_classifier */
 /* globals NLCUTIL_exec_check_clfs */
 /* globals NLCUTIL_set_trigger */
+/* globals RUNTIME_CONFIG */
+/* globals RUNTIME_OPTION */
+/* globals RUNTIME_STATUS */
+
+var IS_DEBUG = false
 
 /**
  * 応答設定フィールドインデックス
@@ -56,6 +61,7 @@ var CONV_INDEX = {
     result3: 4,
     resconf3: 5,
     message: 6,
+    question: 7,
 };
 
 /**
@@ -114,6 +120,8 @@ function CHATUTIL_load_creds() { // eslint-disable-line no-unused-vars
  */
 function CHATUTIL_load_config(config_set) {
 
+    Logger.log(">>> CHATUTIL_load_config")
+
     var sheet = SELF_SS.getSheetByName(config_set.ws_name);
     if (sheet === null) {
         throw new Error("設定シートが不明です");
@@ -164,10 +172,16 @@ function CHATUTIL_load_config(config_set) {
         error_msg: records[CONF_INDEX.error_msg][i],
         avatar_url: records[CONF_INDEX.avatar_url][i],
         giveup_msg: records[CONF_INDEX.giveup_msg][i],
+        show_suggests: records[CONF_INDEX.show_suggests][i],
     };
 
     var conv_conf = {};
     conv_conf["ws_name"] = records[CONF_INDEX.conv_ws][0];
+
+    Logger.log("<<< CHATUTIL_load_config")
+
+    RUNTIME_CONFIG.sheet_conf = sheet_conf;
+    RUNTIME_CONFIG.conv_conf = conv_conf;
 
     return {
         sheet_conf: sheet_conf,
@@ -185,6 +199,9 @@ function CHATUTIL_load_config(config_set) {
  * @throws      {Error}  応答設定シートに問題があります
  */
 function CHATUTIL_load_conv_rules(config_set) {
+
+
+    Logger.log(">>> CHATUTIL_load_conv_rules")
 
     var sheet = SELF_SS.getSheetByName(config_set.ws_name);
     if (sheet === null) {
@@ -224,8 +241,11 @@ function CHATUTIL_load_conv_rules(config_set) {
                 String(records[i][CONV_INDEX.resconf3]),
             ],
             message: records[i][CONV_INDEX.message],
+            question: records[i][CONV_INDEX.question],
         });
     }
+
+    Logger.log("<<< CHATUTIL_load_conv_rules")
 
     return rules;
 }
@@ -281,49 +301,166 @@ function CHATUTIL_expand_tags(p_temp, p_dict) {
  */
 function CHATUTIL_select_message(conv_set, res_classes) {
 
+    var NB_MESSAGES = 1;
+    if (conv_set.show_suggests === "ON") {
+        NB_MESSAGES = 4;
+    }
+
+    // DEBUG
+    var row;
+    var debug;
+    if (IS_DEBUG === true) {
+        debug = SELF_SS.getSheetByName("DEBUG");
+        var n = debug.getLastRow()
+        if (n >= 2) {
+            debug.deleteRows(2, n - 1)
+        }
+        row = 2;
+        res_classes[0].classes.forEach(function (item) {
+            var rec = [item.class_name, item.confidence]
+            debug.getRange(row, 1, 1, rec.length)
+                .setValues([rec]);
+            row += 1
+        })
+        row = 2;
+        res_classes[1].classes.forEach(function (item) {
+            var rec = [item.class_name, item.confidence]
+            debug.getRange(row, 3, 1, rec.length)
+                .setValues([rec]);
+            row += 1
+        })
+        row = 2;
+        res_classes[2].classes.forEach(function (item) {
+            var rec = [item.class_name, item.confidence]
+            debug.getRange(row, 5, 1, rec.length)
+                .setValues([rec]);
+            row += 1
+        })
+        row = 10;
+    }
+
+
     Logger.log("### CHATUTIL_select_messsage");
+
+    if (res_classes[0].classes.length === 0) {
+        res_classes[0].classes.push({
+            class_name: "",
+            confidence: 0.0
+        })
+    }
+    if (res_classes[1].classes.length === 0) {
+        res_classes[1].classes.push({
+            class_name: "",
+            confidence: 0.0
+        })
+    }
+    if (res_classes[2].classes.length === 0) {
+        res_classes[2].classes.push({
+            class_name: "",
+            confidence: 0.0
+        })
+    }
+
+    var refs = []
+    res_classes[0].classes.forEach(function (item1) {
+
+        res_classes[1].classes.forEach(function (item2) {
+
+            res_classes[2].classes.forEach(function (item3) {
+
+                refs.push({
+                    names: [item1.class_name, item2.class_name, item3.class_name],
+                    confs: [item1.confidence, item2.confidence, item3.confidence],
+                    score: item1.confidence + item2.confidence + item3.confidence,
+                });
+            });
+        });
+    });
+
+    var sorted = refs.sort(function (elem1, elem2) {
+        if (elem1.score > elem2.score) return -1
+        if (elem1.score < elem2.score) return 1
+        return 0
+    });
+
 
     var messages = [];
     var match_cnt = 0;
-    for (var i = 0; i < conv_set.rules.length; i += 1) {
+    var rec;
+    sorted.forEach(function (ref) {
 
-        var chk_cnt = 0;
-        for (var j = 0; j < NB_CLFS; j += 1) {
+        if (IS_DEBUG === true) {
+            row += 1
+            rec = [ref.names[0], ref.confs[0], ref.names[1], ref.confs[1], ref.names[2], ref.confs[2], ref.score]
+            debug.getRange(row, 1, 1, rec.length)
+                .setValues([rec])
+        }
 
-            if (conv_set.rules[i].res_int[j] === "") {
-                chk_cnt += 1;
-            } else {
-                if (res_classes[j].class_name === conv_set.rules[i].res_int[j]) {
-                    if (conv_set.rules[i].res_conf[j] === "") {
-                        chk_cnt += 1;
-                    } else {
-                        if (res_classes[j].confidence >= conv_set.rules[i].res_conf[j]) {
+        if (match_cnt >= NB_MESSAGES) return
+
+        for (var i = 0; i < conv_set.rules.length; i += 1) {
+
+            if (conv_set.rules[i].checked === true) continue
+
+            var chk_cnt = 0;
+            for (var j = 0; j < NB_CLFS; j += 1) {
+
+                if (conv_set.rules[i].res_int[j] === "") {
+                    chk_cnt += 1;
+                } else {
+
+                    if (ref.names[j] === conv_set.rules[i].res_int[j]) {
+
+                        if (conv_set.rules[i].res_conf[j] === "") {
                             chk_cnt += 1;
+                        } else {
+                            if (ref.confs[j] >= conv_set.rules[i].res_conf[j]) {
+                                chk_cnt += 1;
+                            }
                         }
                     }
                 }
             }
+            if (chk_cnt === NB_CLFS) {
+                var env_vars = {
+                    input: conv_set.input_text,
+                    date: Utilities.formatDate(new Date(), "JST", "yyyy年MM月dd日"),
+                    time: Utilities.formatDate(new Date(), "JST", "HH時mm分ss秒"),
+                };
+
+                if (IS_DEBUG === true) {
+                    rec = [conv_set.rules[i].message, conv_set.rules[i].question,
+                        conv_set.rules[i].res_int[0], conv_set.rules[i].res_conf[0],
+                        conv_set.rules[i].res_int[1], conv_set.rules[i].res_conf[1],
+                        conv_set.rules[i].res_int[2], conv_set.rules[i].res_conf[2],
+                    ];
+
+                    debug.getRange(row, 10, 1, rec.length)
+                        .setValues([rec]);
+                }
+
+                var res = CHATUTIL_expand_tags(conv_set.rules[i].message, env_vars);
+                messages.push({
+                    message: res.text,
+                    question: conv_set.rules[i].question
+                });
+                match_cnt += 1;
+                conv_set.rules[i].checked = true
+                break;
+            }
         }
 
-        if (chk_cnt === NB_CLFS) {
-
-            var env_vars = {
-                input: conv_set.input_text,
-                date: Utilities.formatDate(new Date(), "JST", "yyyy年MM月dd日"),
-                time: Utilities.formatDate(new Date(), "JST", "HH時mm分ss秒"),
-            };
-
-            var res = CHATUTIL_expand_tags(conv_set.rules[i].message, env_vars);
-            messages.push(res.text);
-            match_cnt += 1;
-            break;
-        }
-    }
+    });
 
     if (match_cnt === 0) {
-        messages.push(conv_set.other_msg);
+        messages.push({
+            message: conv_set.other_msg,
+            question: ""
+        });
     }
-    return messages;
+
+    Logger.log("<<< CHATUTIL_select_messsage")
+    return messages
 }
 // ----------------------------------------------------------------------------
 
@@ -371,6 +508,11 @@ function CHATUTIL_store_dialog(conv_set, res_classes) {
         .setValue(res_classes[2].confidence);
     sheet.getRange(lastRow, 15, 1, 1)
         .setValue(res_classes[2].timestamp);
+
+
+    lastRow = sheet.getLastRow();
+    sheet.setActiveRange(sheet.getRange((lastRow + 1), 1))
+
 }
 // ----------------------------------------------------------------------------
 
@@ -412,99 +554,55 @@ function CHATUTIL_store_reply(input, res_msg) { // eslint-disable-line no-unused
 // ----------------------------------------------------------------------------
 
 
-// ----------------------------------------------------------------------------
 /**
- * メッセージ送信
- * @param       {String} input_text ユーザー入力
- * @return      {Object} 応答メッセージ
+ * 環境情報の取得
  */
-function CHATUTIL_send_message(input_text) { // eslint-disable-line no-unused-vars
+function CHATUTIL_prepare_chat() {
 
-    Logger.log("CHATUTIL_send message");
+    Logger.log(">>> CHATUTIL_prepare_chat");
 
-    var timestamp = Utilities.formatDate(new Date(), "JST", "yyyy/MM/dd HH:mm:ss");
+    var userProperties = PropertiesService.getUserProperties();
 
-    var conf = CHATUTIL_load_config(CONFIG_SET);
+    var CONF = CHATUTIL_load_config(CONFIG_SET);
+    userProperties.setProperty('CONF', JSON.stringify(CONF));
 
-    var conv_conf = {
-        ss_id: SS_ID,
-        ws_name: conf.conv_conf.ws_name,
-        start_col: CONFIG_SET.conv_start_col,
-        start_row: CONFIG_SET.conv_start_row,
-    };
-
-    var rules = CHATUTIL_load_conv_rules(conv_conf);
-
-    var conv_set = {
-        ss_id: SS_ID,
-        ws_name: conf.sheet_conf.ws_name,
-        start_col: conf.sheet_conf.start_col,
-        start_row: conf.sheet_conf.start_row,
-        rules: rules,
-        other_msg: conf.sheet_conf.other_msg,
-        input_text: input_text,
-    };
-
-    var CREDS;
-    var res_classes;
-    var msgs;
+    var CREDS = {};
     try {
         CREDS = NLCUTIL_load_creds();
     } catch (e) {
-        msgs = [];
-        msgs.push(conf.sheet_conf.error_msg);
-        conv_set.input_text = input_text;
-        conv_set.messages = msgs.join('\n');
-        conv_set.timestamp = timestamp;
-
-        res_classes = [{
-                class_name: 'N/A',
-                confidence: 0,
-                timestamp: timestamp
-            },
-            {
-                class_name: 'N/A',
-                confidence: 0,
-                timestamp: timestamp
-            },
-            {
-                class_name: 'N/A',
-                confidence: 0,
-                timestamp: timestamp
-            },
-        ];
-        CHATUTIL_store_dialog(conv_set, res_classes);
-        return {
-            response: msgs,
-        };
+        Logger.log(e)
     }
+
+    userProperties.setProperty('CREDS', JSON.stringify(CREDS));
 
     var log_set = {
         ss_id: SS_ID,
-        ws_name: conf.sheet_conf.log_ws,
+        ws_name: CONF.sheet_conf.log_ws,
         start_col: CONFIG_SET.log_start_col,
         start_row: CONFIG_SET.log_start_row,
     };
 
     var test_set = {
         ss_id: SS_ID,
-        ws_name: conf.sheet_conf.ws_name,
-        start_col: conf.sheet_conf.start_col,
-        start_row: conf.sheet_conf.start_row,
+        ws_name: CONF.sheet_conf.ws_name,
+        start_col: CONF.sheet_conf.start_col,
+        start_row: CONF.sheet_conf.start_row,
         end_row: -1,
-        text_col: conf.sheet_conf.text_col,
+        text_col: CONF.sheet_conf.text_col,
     };
 
-    var clf_ids = [];
+    var clfs = NLCUTIL_list_classifiers(CREDS.username, CREDS.password);
+    var CLF_IDS = [];
     for (var i = 0; i < NB_CLFS; i += 1) {
 
         var clf_name = CLFNAME_PREFIX + String(i + 1);
         test_set.clf_no = i + 1;
         test_set.clf_name = clf_name;
-        test_set.result_col = conf.sheet_conf.result_col[i];
-        test_set.restime_col = conf.sheet_conf.restime_col[i];
+        test_set.result_col = CONF.sheet_conf.result_col[i];
+        test_set.restime_col = CONF.sheet_conf.restime_col[i];
 
-        var clf = NLCUTIL_select_clf(clf_name, CREDS.username, CREDS.password);
+        var clf = NLCUTIL_select_clf(clfs, clf_name, CREDS.username, CREDS.password);
+
         if (clf.status === "Training") {
             NLCUTIL_log_classify(log_set, test_set, {
                 status: 900,
@@ -518,30 +616,6 @@ function CHATUTIL_send_message(input_text) { // eslint-disable-line no-unused-va
                 clf_id: "",
             });
         } else if (clf.status === "Error") {
-            msgs = [];
-            msgs.push(conf.sheet_conf.error_msg);
-            conv_set.input_text = input_text;
-            conv_set.messages = msgs.join('\n');
-            conv_set.timestamp = timestamp;
-
-            res_classes = [{
-                    class_name: 'N/A',
-                    confidence: 0,
-                    timestamp: timestamp
-                },
-                {
-                    class_name: 'N/A',
-                    confidence: 0,
-                    timestamp: timestamp
-                },
-                {
-                    class_name: 'N/A',
-                    confidence: 0,
-                    timestamp: timestamp
-                },
-            ];
-            CHATUTIL_store_dialog(conv_set, res_classes);
-
             NLCUTIL_log_classify(log_set, test_set, {
                 status: clf.code,
                 description: clf.description,
@@ -549,9 +623,6 @@ function CHATUTIL_send_message(input_text) { // eslint-disable-line no-unused-va
                 throw_exception: false,
             });
 
-            return {
-                response: msgs,
-            };
         } else if (clf.status !== "Available") {
             NLCUTIL_log_classify(log_set, test_set, {
                 status: 800,
@@ -560,32 +631,77 @@ function CHATUTIL_send_message(input_text) { // eslint-disable-line no-unused-va
             });
         }
 
-        clf_ids.push({
+        CLF_IDS.push({
             id: clf.clf_id,
             status: clf.status,
         });
     }
+    userProperties.setProperty('CLF_IDS', JSON.stringify(CLF_IDS));
+
+}
+
+
+// ----------------------------------------------------------------------------
+/**
+ * メッセージ送信
+ * @param       {String} input_text ユーザー入力
+ * @return      {Object} 応答メッセージ
+ */
+function CHATUTIL_send_message(input_text) { // eslint-disable-line no-unused-vars
+
+    Logger.log(">>> CHATUTIL_send message");
+
+    var userProperties = PropertiesService.getUserProperties();
+    var prop = userProperties.getProperty('CONF');
+    var CONF = JSON.parse(prop)
+
+    var conv_conf = {
+        ss_id: SS_ID,
+        ws_name: CONF.conv_conf.ws_name,
+        start_col: CONFIG_SET.conv_start_col,
+        start_row: CONFIG_SET.conv_start_row,
+    };
+    var RULES = CHATUTIL_load_conv_rules(conv_conf);
+
+    prop = userProperties.getProperty('CREDS');
+    var CREDS = JSON.parse(prop)
+
+    prop = userProperties.getProperty('CLF_IDS');
+    var CLF_IDS = JSON.parse(prop)
+
+    var conv_set = {
+        ss_id: SS_ID,
+        ws_name: CONF.sheet_conf.ws_name,
+        start_col: CONF.sheet_conf.start_col,
+        start_row: CONF.sheet_conf.start_row,
+        rules: RULES,
+        other_msg: CONF.sheet_conf.other_msg,
+        show_suggests: CONF.sheet_conf.show_suggests,
+        input_text: input_text,
+    };
+    var timestamp = Utilities.formatDate(new Date(), "JST", "yyyy/MM/dd HH:mm:ss");
 
     // ３つの分類器にリクエストを投げる
-    res_classes = [];
+    var res_classes = [];
     var nlc_res;
     //var err_res;
     var has_error = 0;
     for (var j = 0; j < NB_CLFS; j += 1) {
 
-        if (clf_ids[j].status !== "Available") {
+        if (CLF_IDS[j].status !== "Available") {
             res_classes.push({
                 class_name: "",
                 confidence: "",
                 timestamp: "",
+                classes: [],
             });
-            if (clf_ids[j].status !== 'Nothing') {
+            if (CLF_IDS[j].status !== 'Nothing') {
                 has_error = 1;
             }
             continue;
         }
 
-        nlc_res = NLCAPI_post_classify(CREDS.username, CREDS.password, clf_ids[j].id, input_text);
+        nlc_res = NLCAPI_post_classify(CREDS.username, CREDS.password, CLF_IDS[j].id, input_text);
         if (nlc_res.status !== 200) {
             //err_res = nlc_res;
             has_error = 2;
@@ -594,19 +710,22 @@ function CHATUTIL_send_message(input_text) { // eslint-disable-line no-unused-va
                 class_name: nlc_res.body.top_class,
                 confidence: nlc_res.body.classes[0].confidence,
                 timestamp: Utilities.formatDate(new Date(nlc_res.from), "JST", "yyyy/MM/dd HH:mm:ss"),
+                classes: nlc_res.body.classes,
             });
         }
     }
 
-    msgs = [];
+    var msgs = [];
     if (has_error !== 0) {
-        msgs.push(conf.sheet_conf.error_msg);
+        msgs.push({
+            message: CONF.sheet_conf.error_msg,
+            question: ""
+        })
     } else {
         msgs = CHATUTIL_select_message(conv_set, res_classes);
     }
 
-    conv_set.input_text = input_text;
-    conv_set.messages = msgs.join('\n');
+    conv_set.messages = msgs[0].message;
     conv_set.timestamp = timestamp;
 
     CHATUTIL_store_dialog(conv_set, res_classes);
@@ -615,6 +734,11 @@ function CHATUTIL_send_message(input_text) { // eslint-disable-line no-unused-va
     var result = {
         response: msgs,
     };
+
+    RUNTIME_STATUS["CHATUTIL_send_message"] = msgs
+
+    Logger.log("<<< CHATUTIL_send message");
+
     return result;
 }
 // ----------------------------------------------------------------------------
@@ -633,7 +757,7 @@ function CHATUTIL_train(train_set, log_set) {
 
     var CREDS = NLCUTIL_load_creds();
 
-    var clfs = NLCAPI_get_classifiers(CREDS.username, CREDS.password);
+    var clfs = train_set.clfs;
     if (clfs.status !== 200) {
         train_result = {
             status: clfs.status,
@@ -718,8 +842,6 @@ function CHATUTIL_train(train_set, log_set) {
 
     }
 
-    NLCUTIL_exec_check_clfs();
-    NLCUTIL_set_trigger('NLCUTIL_exec_check_clfs', 1);
 
     train_result = {
         status: nlc_res.status,
@@ -737,20 +859,9 @@ function CHATUTIL_train(train_set, log_set) {
  * [CHATUTIL_train_set description]
  * @param       {Integer} clf_no 分類器番号
  */
-function CHATUTIL_train_set(clf_no) {
+function CHATUTIL_train_set_all() {
 
     var conf = CHATUTIL_load_config(CONFIG_SET);
-
-    var train_set = {
-        ss_id: SS_ID,
-        ws_name: conf.sheet_conf.ws_name,
-        start_row: conf.sheet_conf.start_row,
-        start_col: conf.sheet_conf.start_col,
-        text_col: conf.sheet_conf.text_col,
-        class_col: conf.sheet_conf.intent_col[clf_no - 1],
-        clf_no: clf_no,
-        clf_name: CLFNAME_PREFIX + String(clf_no),
-    };
 
     var log_set = {
         ss_id: SS_ID,
@@ -759,7 +870,29 @@ function CHATUTIL_train_set(clf_no) {
         start_row: CONFIG_SET.log_start_row,
     };
 
-    CHATUTIL_train(train_set, log_set);
+    var CREDS = NLCUTIL_load_creds()
+
+    var clfs = NLCUTIL_list_classifiers(CREDS.username, CREDS.password)
+
+    for (var clf_no = 1; clf_no <= NB_CLFS; clf_no += 1) {
+
+        var train_set = {
+            ss_id: SS_ID,
+            ws_name: conf.sheet_conf.ws_name,
+            start_row: conf.sheet_conf.start_row,
+            start_col: conf.sheet_conf.start_col,
+            text_col: conf.sheet_conf.text_col,
+            class_col: conf.sheet_conf.intent_col[clf_no - 1],
+            clf_no: clf_no,
+            clf_name: CLFNAME_PREFIX + String(clf_no),
+            clfs: clfs,
+        };
+
+        CHATUTIL_train(train_set, log_set);
+    }
+
+    NLCUTIL_exec_check_clfs();
+    NLCUTIL_set_trigger('NLCUTIL_exec_check_clfs', 1);
 }
 // ----------------------------------------------------------------------------
 
@@ -777,26 +910,24 @@ function CHATUTIL_train_all() { // eslint-disable-line no-unused-vars
         SS_UI = null;
     }
 
-    NLCUTIL_load_creds()
+    var conf = CHATUTIL_load_config(CONFIG_SET)
 
-    var conf = CHATUTIL_load_config(CONFIG_SET);
+    if (!RUNTIME_OPTION.UI_DISABLE || RUNTIME_OPTION.UI_DISABLE === false) {
+        if (SS_UI !== null) {
 
-    if (SS_UI !== null) {
+            var res = NLCUTIL_open_dialog("学習", "学習を開始します。よろしいですか？", SS_UI.ButtonSet.OK_CANCEL);
+            if (res === SS_UI.Button.CANCEL) {
+                NLCUTIL_open_dialog("学習", "学習を中止しました。", SS_UI.ButtonSet.OK);
+                return;
+            }
 
-        var res = NLCUTIL_open_dialog("学習", "学習を開始します。よろしいですか？", SS_UI.ButtonSet.OK_CANCEL);
-        if (res === SS_UI.Button.CANCEL) {
-            NLCUTIL_open_dialog("学習", "学習を中止しました。", SS_UI.ButtonSet.OK);
-            return;
+            var msg = "学習を開始しました。ログは「" + conf.sheet_conf.log_ws + "」シートをご参照ください。";
+            msg += "\nステータスは「" + CONFIG_SET.ws_name + "」シートをご参照ください。";
+            NLCUTIL_open_dialog("学習", msg, SS_UI.ButtonSet.OK);
         }
-
-        var msg = "学習を開始しました。ログは「" + conf.sheet_conf.log_ws + "」シートをご参照ください。";
-        msg += "\nステータスは「" + CONFIG_SET.ws_name + "」シートをご参照ください。";
-        NLCUTIL_open_dialog("学習", msg, SS_UI.ButtonSet.OK);
     }
 
-    for (var i = 1; i <= NB_CLFS; i += 1) {
-        CHATUTIL_train_set(i);
-    }
+    CHATUTIL_train_set_all();
 }
 // ----------------------------------------------------------------------------
-// 9faab82 - 学習データ15000件超過対応
+// e7496a3 - 埋め込みタグ展開時の入力テキスト引き継ぎ漏れ修正

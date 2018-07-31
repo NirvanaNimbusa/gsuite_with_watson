@@ -29,6 +29,11 @@
 /* globals CHATUTIL_send_message */
 /* globals CHATUTIL_store_reply */
 /* globals LINE_REPLY_URL */
+/* globals CHATUTIL_prepare_chat */
+
+var RUNTIME_CONFIG = {}; // eslint-disable-line no-unused-vars
+var RUNTIME_OPTION = {}; // eslint-disable-line no-unused-vars
+var RUNTIME_STATUS = {}; // eslint-disable-line no-unused-vars
 
 /**
  * 分類器数
@@ -87,6 +92,7 @@ var CONF_INDEX = { // eslint-disable-line no-unused-vars
     error_msg: 20,
     avatar_url: 21,
     giveup_msg: 22,
+    show_suggests: 23,
 };
 
 /**
@@ -100,6 +106,12 @@ var SELF_SS = SpreadsheetApp.getActiveSpreadsheet();
  * @type {String}
  */
 var SS_ID = SELF_SS.getId();
+
+/**
+ * クレデンシャル情報
+ * @type {Creds}
+ */
+
 
 /**
  * 設定メタデータ
@@ -131,7 +143,6 @@ var CONFIG_SET = {
 };
 // ----------------------------------------------------------------------------
 
-
 // ----------------------------------------------------------------------------
 /**
  * インクルード
@@ -154,22 +165,31 @@ function include(filename) { // eslint-disable-line no-unused-vars
  */
 function doGet() { // eslint-disable-line no-unused-vars
 
-    var conf = CHATUTIL_load_config(CONFIG_SET);
+    CHATUTIL_prepare_chat()
+    var userProperties = PropertiesService.getUserProperties();
+    var prop = userProperties.getProperty('CONF');
+    var CONF = JSON.parse(prop)
 
     var web = HtmlService.createTemplateFromFile('index');
     web.data = {
         title: "Chat Bot Demo",
-        bot_name: "名無しのボット君",
+        bot_name: "IKEAストア",
         user_name: "あなた",
-        start_msg: conf.sheet_conf.start_msg,
-        avatar_url: conf.sheet_conf.avatar_url,
+        start_msg: CONF.sheet_conf.start_msg,
+        show_suggests: CONF.sheet_conf.show_suggests,
+        user_icon_url: "",
+        bot_icon_url: CONF.sheet_conf.avatar_url,
     };
 
     var output = web.evaluate();
     output.addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui');
     output.addMetaTag("apple-mobile-web-app-capable", 'yes')
     output.addMetaTag("mobile-web-app-capable", 'yes')
+    output.setTitle(web.data.title)
     return output;
+
+    //return web.evaluate()
+    //   .setSandboxMode(HtmlService.SandboxMode.IFRAME);
 }
 // ----------------------------------------------------
 
@@ -182,6 +202,7 @@ function doGet() { // eslint-disable-line no-unused-vars
 function doPost(e) { // eslint-disable-line no-unused-vars
 
     var conf = CHATUTIL_load_config(CONFIG_SET);
+    var CREDS = CHATUTIL_load_creds();
 
     var contents = JSON.parse(e.postData.contents);
 
@@ -209,33 +230,25 @@ function doPost(e) { // eslint-disable-line no-unused-vars
 
     var url = LINE_REPLY_URL;
 
-    var CREDS;
-    try {
-        CREDS = CHATUTIL_load_creds();
-    } catch (err) {
-        CHATUTIL_store_reply('#ERROR', err);
-        return;
-    }
+    UrlFetchApp.fetch(url, {
+        headers: {
+            "Content-Type": 'application/json; charset=UTF-8',
+            Authorization: 'Bearer ' + CREDS.channel_access_token,
+        },
+        method: 'post',
+        payload: JSON.stringify({
+            replyToken: reply_token,
+            messages: [{
+                type: 'text',
+                text: res_msg,
+            }],
+        }),
+    });
 
-    try {
-        UrlFetchApp.fetch(url, {
-            headers: {
-                "Content-Type": 'application/json; charset=UTF-8',
-                Authorization: 'Bearer ' + CREDS.channel_access_token,
-            },
-            method: 'post',
-            payload: JSON.stringify({
-                replyToken: reply_token,
-                messages: [{
-                    type: 'text',
-                    text: res_msg,
-                }],
-            }),
-        });
-    } catch (err) {
-        CHATUTIL_store_reply('#ERROR', err);
-    }
-
+    //return ContentService.createTextOutput(JSON.stringify({
+    //       content: 'post ok'
+    //    }))
+    //   .setMimeType(ContentService.MimeType.JSON);
 }
 // ----------------------------------------------------
 
@@ -255,7 +268,6 @@ function onOpen() { // eslint-disable-line no-unused-vars
             .addItem('分類器3', 'NLCUTIL_del_clf3'))
         .addToUi();
 
-    NLCUTIL_exec_check_clfs();
 }
 // ----------------------------------------------------
 
@@ -263,7 +275,8 @@ function onOpen() { // eslint-disable-line no-unused-vars
  * テスト用メッセージ送信
  */
 function test_send() { // eslint-disable-line no-unused-vars
-    CHATUTIL_send_message("電話番号を教えて");
+    CHATUTIL_prepare_chat()
+    var res = CHATUTIL_send_message("こんにちは");
+    Logger.log(res)
 }
-
-// 8c591a6 - メタデータの追加
+// 0b67e76 - ユーザープロパティ上限値対応、アバター不具合対応
