@@ -63,17 +63,6 @@ var RSS_FIELDS = {
 };
 
 /**
- * 取得フィードフィールドインデックス
- * @type {Object}
- */
-var FEED_FIELDS = {
-    TITLE: 0,
-    URL: 1,
-    CREATED: 2,
-    SUMMARY: 3,
-};
-
-/**
  * フィード取得用シート名
  * @type {String}
  */
@@ -194,43 +183,39 @@ function RSSUTIL_get_feeds(feed_set) {
     var sheet = SELF_SS.getSheetByName(feed_set.ws_name);
 
     var formulastring = "";
-    formulastring = '=Importfeed( "' + feed_set.url + '", "items title", FALSE )';
+    formulastring = '=Importfeed( "' + feed_set.url + '", "items", TRUE )';
     sheet.getRange("A1")
         .setFormula(formulastring);
 
-    formulastring = '=Importfeed( "' + feed_set.url + '", "items url", FALSE )';
-    sheet.getRange("B1")
-        .setFormula(formulastring);
-
-    formulastring = '=Importfeed( "' + feed_set.url + '", "items created", FALSE )';
-    sheet.getRange("C1")
-        .setFormula(formulastring);
-
-    formulastring = '=Importfeed( "' + feed_set.url + '", "items summary", FALSE )';
-    sheet.getRange("D1")
-        .setFormula(formulastring);
-    if (sheet.getRange("D1")
-        .getValue() === "#N/A") {
-        sheet.getRange("D1")
-            .setFormula("");
-    }
-
     var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
 
-    var rss_data = sheet.getRange(1, 1, lastRow, 4)
+    var rss_data = sheet.getRange(1, 1, lastRow, lastCol)
         .getValues();
 
-    var result = [];
-    for (var cnt = 0; cnt < rss_data.length; cnt += 1) {
+    var indices = {};
+    indices.title = rss_data[0].indexOf("Title")
+    indices.url = rss_data[0].indexOf("URL")
+    indices.created = rss_data[0].indexOf("Date Created")
+    indices.summary = rss_data[0].indexOf("Summary")
 
-        var dateObj = new Date(rss_data[cnt][FEED_FIELDS.CREATED]);
-        var localDate = Utilities.formatDate(dateObj, "JST", "yyyy_MMdd_HHmmss");
+    var result = [];
+    for (var cnt = 1; cnt < rss_data.length; cnt += 1) {
+
+        var localDate;
+        if (indices.created !== -1) {
+            var dateObj = new Date(rss_data[cnt][indices.created]);
+            localDate = Utilities.formatDate(dateObj, "JST", "yyyy_MMdd_HHmmss");
+        } else {
+            localDate = ""
+        }
+
         result.push({
             name: feed_set.name,
-            title: NLCUTIL_escape_formula(rss_data[cnt][FEED_FIELDS.TITLE]),
-            url: rss_data[cnt][FEED_FIELDS.URL],
+            title: indices.title !== -1 ? NLCUTIL_escape_formula(rss_data[cnt][indices.title]) : "",
+            url: indices.url !== -1 ? rss_data[cnt][indices.url] : "",
             created: localDate,
-            summary: NLCUTIL_escape_formula(rss_data[cnt][FEED_FIELDS.SUMMARY].trim()),
+            summary: indices.summary !== -1 ? NLCUTIL_escape_formula(rss_data[cnt][indices.summary].trim()) : "",
         });
     }
 
@@ -296,6 +281,8 @@ function RSSUTIL_update_data(data_set) {
         for (var j = 0; j < entries.length; j += 1) {
 
             if (entries[j][RSS_FIELDS.NAME] === data_set.feeds[i].name &&
+                entries[j][RSS_FIELDS.TITLE] === data_set.feeds[i].title &&
+                entries[j][RSS_FIELDS.URL] === data_set.feeds[i].url &&
                 entries[j][RSS_FIELDS.CREATED] === data_set.feeds[i].created) {
                 isMatch = 1;
                 break;
@@ -412,11 +399,12 @@ function RSSUTIL_train(train_set, creds_username, creds_password) {
 
     var clfs = NLCAPI_get_classifiers(creds_username, creds_password);
     if (clfs.status !== 200) {
-        var result = {
+        return {
+            clf_id: '',
             status: clfs.status,
-            description: clfs.error,
+            description: clfs.body.error,
+            code: clfs.body.code,
         };
-        return result;
     }
 
     var sheet = SELF_SS.getSheetByName(train_set.ws_name);
@@ -432,9 +420,11 @@ function RSSUTIL_train(train_set, creds_username, creds_password) {
         entries = [];
     } else {
         entries = sheet.getRange(train_set.start_row, train_set.start_col, (lastRow - train_set.start_row) + 1, lastCol - train_set.start_col)
+            .setNumberFormat('@')
             .getValues();
     }
 
+    var train_buf = [];
     var row_cnt = 0;
     var csvString = "";
 
@@ -475,8 +465,11 @@ function RSSUTIL_train(train_set, creds_username, creds_password) {
             train_text = train_text.substring(0, 1024);
         }
 
-        csvString = csvString + '"' + train_text + '","' + class_name + '"' +
-            "\r\n";
+        train_buf.push({
+            text: train_text,
+            class: class_name
+        });
+
         row_cnt += 1;
     }
 
@@ -485,6 +478,18 @@ function RSSUTIL_train(train_set, creds_username, creds_password) {
             status: 0,
             description: "学習データなし",
         };
+    }
+
+    var LIMIT = 15000;
+    var train_data = [];
+    if (row_cnt > LIMIT) {
+        train_data = train_buf.splice(row_cnt - LIMIT, row_cnt - 1)
+    } else {
+        train_data = train_buf;
+    }
+    for (var tcnt = 0; tcnt < train_data.length; tcnt += 1) {
+        csvString = csvString + '"' + train_data[tcnt].text + '","' + train_data[tcnt].class + '"' +
+            "\r\n";
     }
 
     var clf_info = NLCUTIL_clf_vers(clfs.body.classifiers, train_set.clf_name);
@@ -549,6 +554,7 @@ function RSSUTIL_train_set(clf_no) {
     };
 
     NLCUTIL_log_train(log_set, train_set, train_result);
+
 }
 // ----------------------------------------------------------------------------
 
@@ -559,7 +565,7 @@ function RSSUTIL_train_set(clf_no) {
  */
 function RSSUTIL_train_all() { // eslint-disable-line no-unused-vars
 
-    var CREDS = NLCUTIL_load_creds();
+    NLCUTIL_load_creds();
 
     var conf = RSSUTIL_load_config(CONFIG_SET);
 
@@ -683,6 +689,7 @@ function RSSUTIL_classify(test_set, creds_username, creds_password, override) {
 
         var r = nlc_res.body.top_class;
         sheet.getRange(test_set.start_row + cnt, test_set.result_col, 1, 1)
+            .setNumberFormat('@')
             .setValue(r);
 
         var t = Utilities.formatDate(new Date(), "JST", "yyyy/MM/dd HH:mm:ss");
@@ -869,6 +876,12 @@ function RSSUTIL_classify_all() { // eslint-disable-line no-unused-vars
                 description: "分類器なし",
                 clf_id: "",
             });
+        } else if (clf.status === "Error") {
+            NLCUTIL_log_classify(log_set, test_set, {
+                status: clf.code,
+                description: clf.description,
+                clf_id: clf.clf_id,
+            });
         } else if (clf.status !== "Available") {
             NLCUTIL_log_classify(log_set, test_set, {
                 status: 800,
@@ -960,6 +973,7 @@ function RSSUTIL_classify_all() { // eslint-disable-line no-unused-vars
             } else {
                 var r = nlc_res.body.top_class;
                 sheet.getRange(conf.sheet_conf.start_row + cnt, conf.sheet_conf.result_col[j], 1, 1)
+                    .setNumberFormat('@')
                     .setValue(r);
                 var c = nlc_res.body.classes[0].confidence;
                 sheet.getRange(conf.sheet_conf.start_row + cnt, conf.sheet_conf.resconf_col[j], 1, 1)
@@ -1069,3 +1083,4 @@ function RSSUTIL_classify_no3() { // eslint-disable-line no-unused-vars
     RSSUTIL_classify_set(3);
 }
 // ----------------------------------------------------------------------------
+// 3ad241d - 取得不可フィールドと更新キーの見直し

@@ -25,6 +25,9 @@
 // グローバル
 /* globals NLCUTIL_exec_check_clfs */
 /* globals NLCUTIL_load_creds */
+var RUNTIME_OPTION = {} // eslint-disable-line no-unused-vars
+var RUNTIME_CONFIG = {} // eslint-disable-line no-unused-vars
+var RUNTIME_STATUS = {} // eslint-disable-line no-unused-vars
 
 /**
  * 分類器数
