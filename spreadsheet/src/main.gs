@@ -24,6 +24,9 @@
 // ----------------------------------------------------------------------------
 // グローバル
 /* globals NLCUTIL_exec_check_clfs */
+var RUNTIME_OPTION = {} // eslint-disable-line no-unused-vars
+var RUNTIME_CONFIG = {} // eslint-disable-line no-unused-vars
+var RUNTIME_STATUS = {} // eslint-disable-line no-unused-vars
 
 /**
  * 分類器数
@@ -141,3 +144,4 @@ function onOpen() { // eslint-disable-line no-unused-vars
     NLCUTIL_exec_check_clfs();
 }
 // ----------------------------------------------------------------------------
+// 4702a25 - 管理対象外Classifierの対応
