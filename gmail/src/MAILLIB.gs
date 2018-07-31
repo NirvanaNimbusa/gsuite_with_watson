@@ -48,6 +48,7 @@
 /* globals NLCAPI_post_classifiers */
 /* globals NLCAPI_delete_classifier */
 /* globals NLCAPI_post_classify */
+/* globals BODY_LENGTH_LIMIT */
 
 /**
  * メールデータフィールドインデックス
@@ -191,8 +192,8 @@ function MAILUTIL_load_config(config_set) {
     if (sheet_conf.search_limit > MAX_THREADS) {
         sheet_conf.search_limit = MAX_THREADS;
     }
-
     sheet_conf["ago_days"] = conf_list[CONF_INDEX.ago_days][0];
+    sheet_conf["top_msg_only"] = conf_list[CONF_INDEX.top_msg_only][0];
 
     var notif_conf = {};
     notif_conf["option"] = conf_list[CONF_INDEX.notif_opt][0];
@@ -298,7 +299,11 @@ function MAILUTIL_get_messages(mail_set) {
         var thread = threads[i];
         var msgs = thread.getMessages();
 
-        for (var j = 0; j < msgs.length; j += 1) {
+        var nb_msgs = 1;
+        if (mail_set.top_msg_only === "Off") {
+            nb_msgs = msgs.length
+        }
+        for (var j = 0; j < nb_msgs; j += 1) {
             var msg = msgs[j];
 
             var res_msg = [
@@ -388,6 +393,15 @@ function MAILUTIL_update_data(mail_set) {
         }
 
         if (isMatch === 0) {
+
+            if (mail_set.msgs[i][MAIL_FIELDS.BODY].length > BODY_LENGTH_LIMIT) {
+                mail_set.msgs[i][MAIL_FIELDS.BODY] = mail_set.msgs[i][MAIL_FIELDS.BODY].substring(0, BODY_LENGTH_LIMIT)
+            }
+
+            if (mail_set.msgs[i][MAIL_FIELDS.NORM_BODY].length > BODY_LENGTH_LIMIT) {
+                mail_set.msgs[i][MAIL_FIELDS.NORM_BODY] = mail_set.msgs[i][MAIL_FIELDS.NORM_BODY].substring(0, BODY_LENGTH_LIMIT)
+            }
+
             var record = [
                 mail_set.msgs[i][MAIL_FIELDS.ID],
                 mail_set.msgs[i][MAIL_FIELDS.DATE],
@@ -442,6 +456,7 @@ function MAILUTIL_load_messages() { // eslint-disable-line no-unused-vars
         query: conf.sheet_conf.query,
         search_limit: conf.sheet_conf.search_limit,
         exc_res: conf.exc_conf.re_list,
+        top_msg_only: conf.sheet_conf.top_msg_only,
         msgs: [],
     };
 
@@ -487,8 +502,10 @@ function MAILUTIL_train(train_set, creds_username, creds_password) {
     var clfs = NLCAPI_get_classifiers(creds_username, creds_password);
     if (clfs.status !== 200) {
         return {
-            status: clfs.code,
-            description: clfs.status,
+            clf_id: '',
+            status: clfs.status,
+            description: clfs.body.error,
+            code: clfs.body.code,
         };
     }
 
@@ -505,9 +522,11 @@ function MAILUTIL_train(train_set, creds_username, creds_password) {
         entries = [];
     } else {
         entries = sheet.getRange(train_set.start_row, train_set.start_col, (lastRow - train_set.start_row) + 1, lastCol - train_set.start_col)
+            .setNumberFormat('@')
             .getValues();
     }
 
+    var train_buf = [];
     var row_cnt = 0;
     var csvString = "";
 
@@ -545,8 +564,11 @@ function MAILUTIL_train(train_set, creds_username, creds_password) {
             train_text = train_text.substring(0, 1024);
         }
 
-        csvString = csvString + '"' + train_text + '","' + class_name + '"' +
-            "\r\n";
+        train_buf.push({
+            text: train_text,
+            class: class_name
+        });
+
         row_cnt += 1;
     }
 
@@ -555,6 +577,18 @@ function MAILUTIL_train(train_set, creds_username, creds_password) {
             status: 0,
             description: "学習データなし",
         };
+    }
+
+    var LIMIT = 15000;
+    var train_data = [];
+    if (row_cnt > LIMIT) {
+        train_data = train_buf.splice(row_cnt - LIMIT, row_cnt - 1)
+    } else {
+        train_data = train_buf;
+    }
+    for (var tcnt = 0; tcnt < train_data.length; tcnt += 1) {
+        csvString = csvString + '"' + train_data[tcnt].text + '","' + train_data[tcnt].class + '"' +
+            "\r\n";
     }
 
     var clf_info = NLCUTIL_clf_vers(clfs.body.classifiers, train_set.clf_name);
@@ -618,6 +652,7 @@ function MAILUTIL_train_set(clf_no) {
     };
 
     NLCUTIL_log_train(log_set, train_set, train_result);
+
 }
 // ----------------------------------------------------------------------------
 
@@ -721,6 +756,7 @@ function MAILUTIL_classify_all() { // eslint-disable-line no-unused-vars
         end_row: -1,
         text_col: conf.sheet_conf.train_column,
         notif_set: notif_set,
+        notif_opt: conf.notif_conf.option,
     };
 
     var clf_ids = [];
@@ -745,6 +781,12 @@ function MAILUTIL_classify_all() { // eslint-disable-line no-unused-vars
                 status: 900,
                 description: "分類器なし",
                 clf_id: "",
+            });
+        } else if (clf.status === "Error") {
+            NLCUTIL_log_classify(log_set, test_set, {
+                status: clf.code,
+                description: clf.description,
+                clf_id: clf.clf_id,
             });
         } else if (clf.status !== "Available") {
             NLCUTIL_log_classify(log_set, test_set, {
@@ -834,6 +876,7 @@ function MAILUTIL_classify_all() { // eslint-disable-line no-unused-vars
             } else {
                 var r = nlc_res.body.top_class;
                 sheet.getRange(conf.sheet_conf.start_row + cnt, conf.sheet_conf.result_col[j], 1, 1)
+                    .setNumberFormat('@')
                     .setValue(r);
                 var t = Utilities.formatDate(new Date(), "JST", "yyyy/MM/dd HH:mm:ss");
                 sheet.getRange(conf.sheet_conf.start_row + cnt, conf.sheet_conf.restime_col[j], 1, 1)
@@ -898,3 +941,4 @@ function MAILUTIL_classify_all() { // eslint-disable-line no-unused-vars
     }
 }
 // ----------------------------------------------------------------------------
+// 72d6761 - 50000文字超過対応

@@ -32,6 +32,12 @@
 var NB_CLFS = 3; // eslint-disable-line no-unused-vars
 
 /**
+ * メール本文の文字数上限(超過は切り捨て)
+ * @type {Integer}
+ */
+var BODY_LENGTH_LIMIT = 2000; // eslint-disable-line no-unused-vars
+
+/**
  * 設定シートフィールドインデックス
  * @type {Object}
  * @property {Integer} ws_name       シート名
@@ -79,6 +85,7 @@ var CONF_INDEX = { // eslint-disable-line no-unused-vars
     query: 19,
     ago_days: 20,
     search_limit: 21,
+    top_msg_only: 22,
 };
 
 /**
@@ -145,3 +152,5 @@ function onOpen() { // eslint-disable-line no-unused-vars
 
     NLCUTIL_exec_check_clfs();
 }
+// ----------------------------------------------------------------------------
+// 72d6761 - 50000文字超過対応
