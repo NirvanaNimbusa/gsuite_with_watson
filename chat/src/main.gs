@@ -34,6 +34,7 @@
 var RUNTIME_CONFIG = {}; // eslint-disable-line no-unused-vars
 var RUNTIME_OPTION = {}; // eslint-disable-line no-unused-vars
 var RUNTIME_STATUS = {}; // eslint-disable-line no-unused-vars
+var RUNTIME_ACTIVE = "CHATLIB" // eslint-disable-line no-unused-vars
 
 /**
  * 分類器数
@@ -279,4 +280,4 @@ function test_send() { // eslint-disable-line no-unused-vars
     var res = CHATUTIL_send_message("こんにちは");
     Logger.log(res)
 }
-// 0b67e76 - ユーザープロパティ上限値対応、アバター不具合対応
+// accada2 - 管理対象外Classifierの対応、共通関数の実行抑止

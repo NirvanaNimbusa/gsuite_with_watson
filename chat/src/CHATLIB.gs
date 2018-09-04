@@ -37,7 +37,7 @@
 /* globals NLCUTIL_norm_text */
 /* globals NLCUTIL_open_dialog */
 /* globals NLCAPI_post_classify */
-/* globals NLCAPI_get_classifiers */
+/* globals NLCUTIL_list_classifiers */
 /* globals NLCUTIL_clf_vers */
 /* globals NLCAPI_post_classifiers */
 /* globals NLCAPI_delete_classifier */
@@ -557,7 +557,7 @@ function CHATUTIL_store_reply(input, res_msg) { // eslint-disable-line no-unused
 /**
  * 環境情報の取得
  */
-function CHATUTIL_prepare_chat() {
+function CHATUTIL_prepare_chat() { // eslint-disable-line no-unused-vars
 
     Logger.log(">>> CHATUTIL_prepare_chat");
 
@@ -930,4 +930,4 @@ function CHATUTIL_train_all() { // eslint-disable-line no-unused-vars
     CHATUTIL_train_set_all();
 }
 // ----------------------------------------------------------------------------
-// e7496a3 - 埋め込みタグ展開時の入力テキスト引き継ぎ漏れ修正
+// accada2 - 管理対象外Classifierの対応、共通関数の実行抑止
