@@ -24,6 +24,10 @@
 // ----------------------------------------------------------------------------
 // グローバル変数
 /* globals NLCUTIL_exec_check_clfs */
+var RUNTIME_OPTION = {} // eslint-disable-line no-unused-vars
+var RUNTIME_CONFIG = {} // eslint-disable-line no-unused-vars
+var RUNTIME_STATUS = {} // eslint-disable-line no-unused-vars
+var RUNTIME_ACTIVE = "MAILLIB" // eslint-disable-line no-unused-vars
 
 /**
  * 分類器数
@@ -153,4 +157,4 @@ function onOpen() { // eslint-disable-line no-unused-vars
     NLCUTIL_exec_check_clfs();
 }
 // ----------------------------------------------------------------------------
-// 72d6761 - 50000文字超過対応
+// accada2 - 管理対象外Classifierの対応、共通関数の実行抑止

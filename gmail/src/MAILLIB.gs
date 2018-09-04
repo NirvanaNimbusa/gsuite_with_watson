@@ -32,10 +32,11 @@
 /* globals CLFNAME_PREFIX */
 /* globals CLF_SEP */
 /* globals NOTIF_OPT */
+/* globals RUNTIME_CONFIG */
+/* globals RUNTIME_OPTION */
 /* globals NLCUTIL_load_creds */
 /* globals NLCUTIL_escape_formula */
 /* globals NLCUTIL_open_dialog */
-/* globals NLCAPI_get_classifiers */
 /* globals NLCUTIL_norm_text */
 /* globals NLCUTIL_clf_vers */
 /* globals NLCUTIL_exec_check_clfs */
@@ -49,6 +50,7 @@
 /* globals NLCAPI_delete_classifier */
 /* globals NLCAPI_post_classify */
 /* globals BODY_LENGTH_LIMIT */
+/* globals NLCUTIL_list_classifiers */
 
 /**
  * メールデータフィールドインデックス
@@ -214,6 +216,10 @@ function MAILUTIL_load_config(config_set) {
         }
     }
     exc_conf["re_list"] = re_list;
+
+    RUNTIME_CONFIG.sheet_conf = sheet_conf
+    RUNTIME_CONFIG.notif_conf = notif_conf
+    RUNTIME_CONFIG.exc_conf = exc_conf
 
     return {
         sheet_conf: sheet_conf,
@@ -499,7 +505,7 @@ function MAILUTIL_train(train_set, creds_username, creds_password) {
 
     Logger.log("### MAILUTIL_train");
 
-    var clfs = NLCAPI_get_classifiers(creds_username, creds_password);
+    var clfs = NLCUTIL_list_classifiers(creds_username, creds_password);
     if (clfs.status !== 200) {
         return {
             clf_id: '',
@@ -674,16 +680,18 @@ function MAILUTIL_train_all() { // eslint-disable-line no-unused-vars
         SS_UI = null;
     }
 
-    if (SS_UI != null) {
-        var res = NLCUTIL_open_dialog("学習", "学習を開始します。よろしいですか？", SS_UI.ButtonSet.OK_CANCEL);
-        if (res === SS_UI.Button.CANCEL) {
-            NLCUTIL_open_dialog("学習", "学習を中止しました。", SS_UI.ButtonSet.OK);
-            return;
-        }
+    if (!RUNTIME_OPTION.UI_DISABLE || RUNTIME_OPTION.UI_DISABLE === false) {
+        if (SS_UI != null) {
+            var res = NLCUTIL_open_dialog("学習", "学習を開始します。よろしいですか？", SS_UI.ButtonSet.OK_CANCEL);
+            if (res === SS_UI.Button.CANCEL) {
+                NLCUTIL_open_dialog("学習", "学習を中止しました。", SS_UI.ButtonSet.OK);
+                return;
+            }
 
-        var msg = "学習を開始しました。ログは「" + conf.sheet_conf.log_ws + "」シートをご参照ください。";
-        msg += "\nステータスは「" + CONFIG_SET.ws_name + "」シートをご参照ください。";
-        NLCUTIL_open_dialog("学習", msg, SS_UI.ButtonSet.OK);
+            var msg = "学習を開始しました。ログは「" + conf.sheet_conf.log_ws + "」シートをご参照ください。";
+            msg += "\nステータスは「" + CONFIG_SET.ws_name + "」シートをご参照ください。";
+            NLCUTIL_open_dialog("学習", msg, SS_UI.ButtonSet.OK);
+        }
     }
 
     for (var i = 1; i <= NB_CLFS; i += 1) {
@@ -714,14 +722,16 @@ function MAILUTIL_classify_all() { // eslint-disable-line no-unused-vars
         SS_UI = null;
     }
 
-    if (SS_UI !== null) {
-        var res = NLCUTIL_open_dialog("分類", "分類を開始します。よろしいですか？", SS_UI.ButtonSet.OK_CANCEL);
-        if (res === SS_UI.Button.CANCEL) {
-            NLCUTIL_open_dialog("分類", "分類を中止しました。", SS_UI.ButtonSet.OK);
-            return;
+    if (!RUNTIME_OPTION.UI_DISABLE || RUNTIME_OPTION.UI_DISABLE === false) {
+        if (SS_UI !== null) {
+            var res = NLCUTIL_open_dialog("分類", "分類を開始します。よろしいですか？", SS_UI.ButtonSet.OK_CANCEL);
+            if (res === SS_UI.Button.CANCEL) {
+                NLCUTIL_open_dialog("分類", "分類を中止しました。", SS_UI.ButtonSet.OK);
+                return;
+            }
+            var msg = "分類を開始しました。ログは「" + conf.sheet_conf.log_ws + "」シートをご参照ください。";
+            NLCUTIL_open_dialog("分類", msg, SS_UI.ButtonSet.OK);
         }
-        var msg = "分類を開始しました。ログは「" + conf.sheet_conf.log_ws + "」シートをご参照ください。";
-        NLCUTIL_open_dialog("分類", msg, SS_UI.ButtonSet.OK);
     }
 
 
@@ -759,6 +769,8 @@ function MAILUTIL_classify_all() { // eslint-disable-line no-unused-vars
         notif_opt: conf.notif_conf.option,
     };
 
+    var clfs = NLCUTIL_list_classifiers(CREDS.username, CREDS.password);
+
     var clf_ids = [];
     for (var i = 0; i < NB_CLFS; i += 1) {
 
@@ -769,7 +781,7 @@ function MAILUTIL_classify_all() { // eslint-disable-line no-unused-vars
         test_set.result_col = conf.sheet_conf.result_col[i];
         test_set.restime_col = conf.sheet_conf.restime_col[i];
 
-        var clf = NLCUTIL_select_clf(clf_name, CREDS.username, CREDS.password);
+        var clf = NLCUTIL_select_clf(clfs, clf_name, CREDS.username, CREDS.password);
         if (clf.status === "Training") {
             NLCUTIL_log_classify(log_set, test_set, {
                 status: 900,
@@ -941,4 +953,4 @@ function MAILUTIL_classify_all() { // eslint-disable-line no-unused-vars
     }
 }
 // ----------------------------------------------------------------------------
-// 72d6761 - 50000文字超過対応
+// accada2 - 管理対象外Classifierの対応、共通関数の実行抑止
