@@ -162,6 +162,10 @@ function RSSUTIL_load_config(config_set) {
             });
         }
     }
+  
+    RUNTIME_CONFIG.sheet_conf = sheet_conf
+    RUNTIME_CONFIG.rss_conf = rss_conf
+    RUNTIME_CONFIG.notif_conf = notif_conf
 
     return {
         sheet_conf: sheet_conf,
@@ -350,7 +354,8 @@ function RSSUTIL_crawl() { // eslint-disable-line no-unused-vars
         SS_UI = null;
     }
 
-    if (SS_UI !== null) {
+    if (!RUNTIME_OPTION.UI_DISABLE || RUNTIME_OPTION.UI_DISABLE === false) {
+      if (SS_UI !== null) {
         var res = NLCUTIL_open_dialog("データ取得", "データ取得を開始します。よろしいですか？", SS_UI.ButtonSet.OK_CANCEL);
         if (res === SS_UI.Button.CANCEL) {
             NLCUTIL_open_dialog("データ取得", "データ取得を中止しました。", SS_UI.ButtonSet.OK);
@@ -358,6 +363,7 @@ function RSSUTIL_crawl() { // eslint-disable-line no-unused-vars
         }
         var msg = "データ取得分類を開始しました。";
         NLCUTIL_open_dialog("データ取得", msg, SS_UI.ButtonSet.OK);
+      }
     }
 
     var rss_set = {
@@ -397,7 +403,7 @@ function RSSUTIL_train(train_set, creds_username, creds_password) {
 
     Logger.log("### RSSUTIL_train");
 
-    var clfs = NLCAPI_get_classifiers(creds_username, creds_password);
+    var clfs = NLCUTIL_list_classifiers(creds_username, creds_password);
     if (clfs.status !== 200) {
         return {
             clf_id: '',
@@ -576,7 +582,8 @@ function RSSUTIL_train_all() { // eslint-disable-line no-unused-vars
         SS_UI = null;
     }
 
-    if (SS_UI !== null) {
+    if (!RUNTIME_OPTION.UI_DISABLE || RUNTIME_OPTION.UI_DISABLE === false) {
+      if (SS_UI !== null) {
         var res = NLCUTIL_open_dialog("学習", "学習を開始します。よろしいですか？", SS_UI.ButtonSet.OK_CANCEL);
         if (res === SS_UI.Button.CANCEL) {
             NLCUTIL_open_dialog("学習", "学習を中止しました。", SS_UI.ButtonSet.OK);
@@ -586,6 +593,7 @@ function RSSUTIL_train_all() { // eslint-disable-line no-unused-vars
         var msg = "学習を開始しました。ログは「" + conf.sheet_conf.log_ws + "」シートをご参照ください。";
         msg += "\nステータスは「" + CONFIG_SET.ws_name + "」シートをご参照ください。";
         NLCUTIL_open_dialog("学習", msg, SS_UI.ButtonSet.OK);
+      }
     }
 
     for (var i = 1; i <= NB_CLFS; i += 1) {
@@ -809,7 +817,8 @@ function RSSUTIL_classify_all() { // eslint-disable-line no-unused-vars
         SS_UI = null;
     }
 
-    if (SS_UI !== null) {
+    if (!RUNTIME_OPTION.UI_DISABLE || RUNTIME_OPTION.UI_DISABLE === false) {
+      if (SS_UI !== null) {
         var res = NLCUTIL_open_dialog("分類", "分類を開始します。よろしいですか？", SS_UI.ButtonSet.OK_CANCEL);
         if (res === SS_UI.Button.CANCEL) {
             NLCUTIL_open_dialog("分類", "分類を中止しました。", SS_UI.ButtonSet.OK);
@@ -817,6 +826,7 @@ function RSSUTIL_classify_all() { // eslint-disable-line no-unused-vars
         }
         var msg = "分類を開始しました。ログは「" + conf.sheet_conf.log_ws + "」シートをご参照ください。";
         NLCUTIL_open_dialog("分類", msg, SS_UI.ButtonSet.OK);
+      }
     }
 
     var notif_conf = {
@@ -852,6 +862,8 @@ function RSSUTIL_classify_all() { // eslint-disable-line no-unused-vars
         notif_set: notif_set,
         notif_opt: conf.notif_conf.option,
     };
+  
+    var clfs = NLCUTIL_list_classifiers(CREDS.username, CREDS.password);
 
     var clf_ids = [];
     for (var i = 0; i < NB_CLFS; i += 1) {
@@ -863,7 +875,7 @@ function RSSUTIL_classify_all() { // eslint-disable-line no-unused-vars
         test_set.result_col = conf.sheet_conf.result_col[i];
         test_set.restime_col = conf.sheet_conf.restime_col[i];
 
-        var clf = NLCUTIL_select_clf(clf_name, CREDS.username, CREDS.password);
+        var clf = NLCUTIL_select_clf(clfs, clf_name, CREDS.username, CREDS.password);
         if (clf.status === "Training") {
             NLCUTIL_log_classify(log_set, test_set, {
                 status: 900,
@@ -1083,4 +1095,4 @@ function RSSUTIL_classify_no3() { // eslint-disable-line no-unused-vars
     RSSUTIL_classify_set(3);
 }
 // ----------------------------------------------------------------------------
-// 3ad241d - 取得不可フィールドと更新キーの見直し
+// f807209 - 管理対象外Classifierの対応、共通関数の実行抑止
