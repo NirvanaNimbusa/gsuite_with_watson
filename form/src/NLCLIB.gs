@@ -1610,8 +1610,8 @@ function NLCUTIL_list_classifiers(username, password, logging) {
             if (typeof logging === 'undefined' || logging === true) {
                 log_set = {
                     level: "WARNING",
-                    title: "不正な分類器名",
-                    name: "",
+                    title: "スクリプトで管理されていない分類器が存在します",
+                    name: "(名前なし)",
                     classifier_id: clf_list[i].classifier_id
                 };
                 NLCUTIL_log_common(log_set);
@@ -1624,7 +1624,7 @@ function NLCUTIL_list_classifiers(username, password, logging) {
             if (typeof logging === 'undefined' || logging === true) {
                 log_set = {
                     level: "WARNING",
-                    title: "不正な分類器名",
+                    title: "スクリプトで管理されていない分類器が存在します",
                     name: clf_list[i].name,
                     classifier_id: clf_list[i].classifier_id
                 };
@@ -2131,4 +2131,4 @@ function NLCAPI_createBoundary() {
     return boundary;
 }
 // ----------------------------------------------------
-// 4702a25 - 管理対象外Classifierの対応
+// c9aab25 - 管理対象外分類器の警告メッセージ変更

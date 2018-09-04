@@ -27,6 +27,7 @@
 var RUNTIME_OPTION = {} // eslint-disable-line no-unused-vars
 var RUNTIME_CONFIG = {} // eslint-disable-line no-unused-vars
 var RUNTIME_STATUS = {} // eslint-disable-line no-unused-vars
+var RUNTIME_ACTIVE = "NLCLIB" // eslint-disable-line no-unused-vars
 
 /**
  * 分類器数
@@ -143,3 +144,4 @@ function onOpen() { // eslint-disable-line no-unused-vars
     NLCUTIL_exec_check_clfs();
 }
 // ----------------------------------------------------------------------------
+// 2f19848 - init
