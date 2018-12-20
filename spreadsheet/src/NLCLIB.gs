@@ -126,12 +126,9 @@ function NLCUTIL_load_creds() { // eslint-disable-line no-unused-vars
     creds['username'] = scriptProps.getProperty('CREDS_USERNAME');
     creds['password'] = scriptProps.getProperty('CREDS_PASSWORD');
 
-    if ( creds.url === null || creds.username === null || creds.password === null) {
+    if (creds.username === null || creds.password === null) {
         throw new Error('クレデンシャルが不明です');
     }
-  
-    URI_DOMAIN = creds['url'];
-    URI_BASE = '';
 
     return creds;
 }
@@ -876,7 +873,7 @@ function NLCUTIL_classify_all() { // eslint-disable-line no-unused-vars
     Logger.log('### NLCUTIL_classify_all');
 
     var CREDS = NLCUTIL_load_creds();
-  
+
     var conf = NLCUTIL_load_config(CONFIG_SET);
 
     var SS_UI;
@@ -1755,8 +1752,8 @@ function NLCUTIL_check_classifiers(clf_set, creds) {
 // Watson Natural Language Classifier API wrapper
 // ----------------------------------------------------
 // 定数
-//var URI_DOMAIN = "https://gateway.watsonplatform.net";
-//var URI_BASE = "/natural-language-classifier/api";
+var URI_DOMAIN = "https://gateway.watsonplatform.net";
+var URI_BASE = "/natural-language-classifier/api";
 var URI_APIVERSION = "v1";
 var EOL = '\r\n';
 /**
@@ -1805,44 +1802,17 @@ function NLCAPI_get_classifiers(p_username, p_password) {
     };
 
     var fromTime = new Date();
-                      
-    var response;
-    try {
-        response = UrlFetchApp.fetch(uri, options);
-    } catch (e) {
-        Logger.log(e);
-        return {
-            status: 999,
-            description: e,
-        };
-    }                  
+    var response = UrlFetchApp.fetch(uri, options);
     var toTime = new Date();
     var delta = (toTime - fromTime);
 
     var responseCode = response.getResponseCode();
     var responseBody = response.getContentText();
-    
-    var res_body;                  
-    try {
-      res_body = JSON.parse(responseBody)
-    }
-    catch (e) {
-      return {
-        status: responseCode,
-        body: {
-          error: responseBody,
-          code: responseCode,
-        },
-        from: fromTime.getTime(),
-        to: toTime.getTime(),
-        delta: delta,
-      }
-    }
-                      
+
     var result;
     result = {
         status: responseCode,
-        body: res_body,
+        body: JSON.parse(responseBody),
         from: fromTime.getTime(),
         to: toTime.getTime(),
         delta: delta,
@@ -1929,27 +1899,10 @@ function NLCAPI_post_classifiers(p_username, p_password, p_training_data, p_clas
     var responseCode = response.getResponseCode();
     var responseBody = response.getContentText();
 
-    var res_body;                  
-    try {
-      res_body = JSON.parse(responseBody)
-    }
-    catch (e) {
-      return {
-        status: responseCode,
-        body: {
-          error: responseBody,
-          code: responseCode,
-        },
-        from: fromTime.getTime(),
-        to: toTime.getTime(),
-        delta: delta,
-      }
-    }
-                      
     var result;
     result = {
         status: responseCode,
-        body: res_body,
+        body: JSON.parse(responseBody),
         from: fromTime.getTime(),
         to: toTime.getTime(),
         delta: delta,
@@ -2002,27 +1955,10 @@ function NLCAPI_post_classify(p_username, p_password, p_classid, p_phrase) {
     var responseCode = response.getResponseCode();
     var responseBody = response.getContentText();
 
-    var res_body;                  
-    try {
-      res_body = JSON.parse(responseBody)
-    }
-    catch (e) {
-      return {
-        status: responseCode,
-        body: {
-          error: responseBody,
-          code: responseCode,
-        },
-        from: fromTime.getTime(),
-        to: toTime.getTime(),
-        delta: delta,
-      }
-    }                      
-
     var result;
     result = {
         status: responseCode,
-        body: res_body,
+        body: JSON.parse(responseBody),
         from: fromTime.getTime(),
         to: toTime.getTime(),
         delta: delta,
@@ -2070,28 +2006,10 @@ function NLCAPI_get_classify(p_username, p_password, p_classid, p_phrase) { // e
 
     var responseCode = response.getResponseCode();
     var responseBody = response.getContentText();
-                      
-    var res_body;                  
-    try {
-      res_body = JSON.parse(responseBody)
-    }
-    catch (e) {
-      return {
-        status: responseCode,
-        body: {
-          error: responseBody,
-          code: responseCode,
-        },
-        from: fromTime.getTime(),
-        to: toTime.getTime(),
-        delta: delta,
-      }
-    }
-                      
     var result;
     result = {
         status: responseCode,
-        body: res_body,
+        body: JSON.parse(responseBody),
         from: fromTime.getTime(),
         to: toTime.getTime(),
         delta: delta,
@@ -2133,31 +2051,13 @@ function NLCAPI_delete_classifier(p_username, p_password, p_classid) {
     var response = UrlFetchApp.fetch(uri, options);
     var toTime = new Date();
     var delta = (toTime - fromTime);
-                      
+
     var responseCode = response.getResponseCode();
     var responseBody = response.getContentText();
-
-    var res_body;                  
-    try {
-      res_body = JSON.parse(responseBody)
-    }
-    catch (e) {
-      return {
-        status: responseCode,
-        body: {
-          error: responseBody,
-          code: responseCode,
-        },
-        from: fromTime.getTime(),
-        to: toTime.getTime(),
-        delta: delta,
-      }
-    }
-                      
     var result;
     result = {
         status: responseCode,
-        body: res_body,
+        body: JSON.parse(responseBody),
         from: fromTime.getTime(),
         to: toTime.getTime(),
         delta: delta,
@@ -2202,28 +2102,10 @@ function NLCAPI_get_classifier(p_username, p_password, p_classid) {
 
     var responseCode = response.getResponseCode();
     var responseBody = response.getContentText();
-                      
-    var res_body;                  
-    try {
-      res_body = JSON.parse(responseBody)
-    }
-    catch (e) {
-      return {
-        status: responseCode,
-        body: {
-          error: responseBody,
-          code: responseCode,
-        },
-        from: fromTime.getTime(),
-        to: toTime.getTime(),
-        delta: delta,
-      }
-    }
-                      
     var result;
     result = {
         status: responseCode,
-        body: res_body,
+        body: JSON.parse(responseBody),
         from: fromTime.getTime(),
         to: toTime.getTime(),
         delta: delta,
@@ -2249,4 +2131,4 @@ function NLCAPI_createBoundary() {
     return boundary;
 }
 // ----------------------------------------------------
-// 8197042 - マルチドメイン対応
+// c9aab25 - 管理対象外分類器の警告メッセージ変更
