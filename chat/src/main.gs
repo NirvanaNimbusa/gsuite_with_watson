@@ -202,8 +202,12 @@ function doGet() { // eslint-disable-line no-unused-vars
  */
 function doPost(e) { // eslint-disable-line no-unused-vars
 
-    var conf = CHATUTIL_load_config(CONFIG_SET);
-    var CREDS = CHATUTIL_load_creds();
+    CHATUTIL_prepare_chat()
+    var userProperties = PropertiesService.getUserProperties();
+    var prop1 = userProperties.getProperty('CONF');
+    var CONF = JSON.parse(prop1)
+    var prop2 = userProperties.getProperty('CREDS');
+    var CREDS = JSON.parse(prop2)
 
     var contents = JSON.parse(e.postData.contents);
 
@@ -216,15 +220,15 @@ function doPost(e) { // eslint-disable-line no-unused-vars
 
     var res_msg = "";
     if (event.type === "follow") {
-        res_msg = conf.sheet_conf.start_msg;
+        res_msg = CONF.sheet_conf.start_msg;
         CHATUTIL_store_reply('#FOLLOW', res_msg);
     } else {
         if (event.message.type === "text") {
             var user_message = event.message.text;
             var res = CHATUTIL_send_message(user_message);
-            res_msg = res.response[0];
+            res_msg = res.response[0].message;
         } else {
-            res_msg = conf.sheet_conf.giveup_msg;
+            res_msg = CONF.sheet_conf.giveup_msg;
             CHATUTIL_store_reply('#UNDEFINED', res_msg);
         }
     }
@@ -280,4 +284,4 @@ function test_send() { // eslint-disable-line no-unused-vars
     var res = CHATUTIL_send_message("こんにちは");
     Logger.log(res)
 }
-// accada2 - 管理対象外Classifierの対応、共通関数の実行抑止
+// 1c289e3 - LINEチャットの最新化

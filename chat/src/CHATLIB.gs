@@ -665,6 +665,9 @@ function CHATUTIL_send_message(input_text) { // eslint-disable-line no-unused-va
 
     prop = userProperties.getProperty('CREDS');
     var CREDS = JSON.parse(prop)
+    URI_DOMAIN = CREDS['url'];
+    URI_BASE = '';
+    
 
     prop = userProperties.getProperty('CLF_IDS');
     var CLF_IDS = JSON.parse(prop)
@@ -930,4 +933,4 @@ function CHATUTIL_train_all() { // eslint-disable-line no-unused-vars
     CHATUTIL_train_set_all();
 }
 // ----------------------------------------------------------------------------
-// accada2 - 管理対象外Classifierの対応、共通関数の実行抑止
+// 1c289e3 - LINEチャットの最新化
