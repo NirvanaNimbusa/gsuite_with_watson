@@ -8,7 +8,7 @@ GoogleのG Suite（Gmail、フォーム、スプレッドシート、GAS等）�
 
 - データの収集と動作設定用Googleスプレッドシート  
 - IBM Watson™と連携してデータを処理するためのGASスクリプト  
-	現状、Watson APIはNatural Language Classifier（NLC）のみに対応しています。
+	現在、Watson APIはNatural Language Classifier（NLC）のみに対応しています。
 
 
 ## 各テンプレート概要
