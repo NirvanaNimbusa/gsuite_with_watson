@@ -18,7 +18,7 @@ Googleフォームでは回答をスプレッドシートに記録すること�
 ## 利用条件
 - [Google](https://accounts.google.com/)アカウントを持っていること
   - Google フォーム、Google スプレッドシート用
-- [IBM Bluemix](https://accounts.google.com/)アカウントを持っていること
+- [IBM Cloud](https://accounts.google.com/)アカウントを持っていること
   - Natural Language Classifier用(一つ以上のインスタンスを用意しておくこと)
 
 
